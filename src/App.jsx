@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 function App() {
+  const [persons, setPersons] = useState([])
+  const [selectedPerson, setSelectedPerson] = useState('')
   const [platform, setPlatform] = useState('Facebook')
   const [length, setLength] = useState('Kort')
   const [tones, setTones] = useState([])
@@ -17,36 +19,44 @@ function App() {
     )
   }
 
-  const parseCSV = (text) => {
-    const lines = text.trim().split('\n')
-    const headers = lines[0].split(',').map(h => h.trim())
-    const rows = lines.slice(1).map(line => {
-      const values = line.split(',').map(v => v.trim())
-      let obj = {}
-      headers.forEach((h, i) => (obj[h] = values[i]))
-      return obj
-    })
-    return { headers, rows }
-  }
-
-  const handleFileChange = (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => {
-      const text = reader.result
-      const { headers, rows } = parseCSV(text)
-      setColumns(headers)
-      setCsvData(rows)
-
-      if (headers.includes('ad_creative_bodies')) {
-        setSelectedColumn('ad_creative_bodies')
-      } else {
-        setSelectedColumn(headers[0] || '')
+  // Hent personer ved mount
+  useEffect(() => {
+    async function fetchPersons() {
+      try {
+        const res = await fetch('http://localhost:3001/api/persons')
+        const data = await res.json()
+        setPersons(data.persons)
+        if (data.persons.length > 0) setSelectedPerson(data.persons[0])
+      } catch (error) {
+        console.error('Fejl ved hentning af personer:', error)
       }
     }
-    reader.readAsText(file)
-  }
+    fetchPersons()
+  }, [])
+
+  // Hent CSV-data når person ændres
+  useEffect(() => {
+    if (!selectedPerson) return
+    async function fetchCsvData() {
+      try {
+        const res = await fetch(`http://localhost:3001/api/getData?person=${selectedPerson}`)
+        const data = await res.json()
+        setColumns(data.headers)
+        setCsvData(data.rows)
+        if (data.headers.includes('ad_creative_bodies')) {
+          setSelectedColumn('ad_creative_bodies')
+        } else {
+          setSelectedColumn(data.headers[0] || '')
+        }
+      } catch (error) {
+        setCsvData(null)
+        setColumns([])
+        setSelectedColumn('')
+        console.error('Fejl ved hentning af CSV-data:', error)
+      }
+    }
+    fetchCsvData()
+  }, [selectedPerson])
 
   const getSelectedColumnText = () => {
     if (!csvData || !selectedColumn) return ''
@@ -145,37 +155,45 @@ ${oldPostsText}
           gap: 24,
         }}
       >
-        {/* Upload */}
+        {/* Personvalg */}
         <section>
           <label
-            htmlFor="csvUpload"
+            htmlFor="personSelect"
             style={{
-              display: 'block',
               fontWeight: '700',
               fontSize: 16,
-              marginBottom: 12,
+              marginBottom: 10,
               color: '#222',
-              cursor: 'pointer',
+              display: 'block',
             }}
           >
-            Upload dine gamle opslag (CSV-fil)
+            Vælg politiker:
           </label>
-          <input
-            type="file"
-            id="csvUpload"
-            accept=".csv"
-            onChange={handleFileChange}
+          <select
+            id="personSelect"
+            value={selectedPerson}
+            onChange={e => setSelectedPerson(e.target.value)}
             style={{
-              borderRadius: 8,
-              padding: '12px 14px',
-              border: '1px solid #ccc',
               width: '100%',
-              cursor: 'pointer',
+              padding: '10px 14px',
+              borderRadius: 10,
+              border: '1px solid #ccc',
               fontSize: 15,
-              backgroundColor: '#fafafa',
             }}
-          />
+          >
+            {persons.map(person => (
+              <option key={person} value={person}>{person}</option>
+            ))}
+          </select>
         </section>
+
+        {/* Fjernet upload input */}
+
+        {!csvData && (
+          <p style={{ fontSize: 16, color: '#555' }}>
+            Henter tidligere opslag fra server...
+          </p>
+        )}
 
         {csvData && (
           <>
@@ -308,81 +326,88 @@ ${oldPostsText}
               </div>
             </section>
 
-            {/* Input text */}
+            {/* Input tekst */}
             <section>
               <label
                 htmlFor="inputText"
-                style={{ fontWeight: '700', fontSize: 16, color: '#222', marginBottom: 8, display: 'block' }}
+                style={{
+                  fontWeight: '700',
+                  fontSize: 16,
+                  marginBottom: 10,
+                  color: '#222',
+                  display: 'block',
+                }}
               >
-                Indhold / idéer til opslag:
+                Emne / idé til opslag:
               </label>
               <textarea
                 id="inputText"
-                rows={5}
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                placeholder="Skriv hvad opslaget skal handle om..."
+                rows={4}
+                placeholder="Skriv her..."
                 style={{
                   width: '100%',
-                  borderRadius: 14,
+                  borderRadius: 12,
                   border: '1px solid #ccc',
-                  padding: '14px 18px',
                   fontSize: 16,
-                  fontFamily: 'inherit',
+                  padding: 14,
                   resize: 'vertical',
-                  boxShadow: 'inset 0 1px 3px rgb(0 0 0 / 0.1)',
-                  transition: 'border-color 0.3s ease',
+                  fontFamily: 'inherit',
                 }}
-                onFocus={(e) => (e.target.style.borderColor = '#1877F2')}
-                onBlur={(e) => (e.target.style.borderColor = '#ccc')}
               />
             </section>
 
-            {/* Generate button */}
-            <button
-              onClick={generatePost}
-              disabled={loading || !inputText || tones.length === 0}
-              style={{
-                marginTop: 12,
-                backgroundColor: loading ? '#a5c1fa' : '#1877F2',
-                border: 'none',
-                color: 'white',
-                fontWeight: '700',
-                padding: '14px 0',
-                fontSize: 18,
-                borderRadius: 30,
-                cursor: loading ? 'wait' : 'pointer',
-                boxShadow: loading ? 'none' : '0 6px 15px rgb(24 119 242 / 0.5)',
-                transition: 'background-color 0.3s ease',
-              }}
-              aria-busy={loading}
-            >
-              {loading ? 'Genererer...' : 'Generer opslag'}
-            </button>
-
-            {/* Output */}
-            {output && (
-              <section
+            {/* Generate knap */}
+            <section>
+              <button
+                onClick={generatePost}
+                disabled={loading || !inputText.trim()}
                 style={{
-                  marginTop: 24,
-                  padding: 20,
-                  backgroundColor: '#f6f7fb',
-                  borderRadius: 16,
-                  borderLeft: '6px solid #1877F2',
-                  whiteSpace: 'pre-wrap',
+                  padding: '14px 36px',
+                  backgroundColor: '#1877F2',
+                  color: 'white',
+                  fontWeight: '700',
                   fontSize: 16,
-                  lineHeight: 1.5,
-                  color: '#222',
-                  boxShadow: '0 2px 10px rgb(24 119 242 / 0.15)',
-                  userSelect: 'text',
+                  borderRadius: 30,
+                  border: 'none',
+                  cursor: loading || !inputText.trim() ? 'not-allowed' : 'pointer',
+                  opacity: loading || !inputText.trim() ? 0.6 : 1,
+                  boxShadow: '0 4px 14px rgba(24,119,242,0.6)',
+                  transition: 'background-color 0.3s ease',
                 }}
               >
-                <h3 style={{ marginTop: 0, marginBottom: 14, color: '#1877F2' }}>
-                  💬 Forslag til opslag:
-                </h3>
+                {loading ? 'Genererer...' : 'Generer opslag'}
+              </button>
+            </section>
+
+            {/* Output */}
+            <section>
+              <label
+                style={{
+                  fontWeight: '700',
+                  fontSize: 16,
+                  marginBottom: 10,
+                  color: '#222',
+                  display: 'block',
+                }}
+              >
+                Genereret opslag:
+              </label>
+              <pre
+                style={{
+                  backgroundColor: '#f9f9f9',
+                  padding: 20,
+                  borderRadius: 14,
+                  minHeight: 120,
+                  whiteSpace: 'pre-wrap',
+                  fontSize: 15,
+                  color: '#333',
+                }}
+              >
                 {output}
-              </section>
-            )}
+              </pre>
+            </section>
           </>
         )}
       </main>
