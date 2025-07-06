@@ -23,7 +23,7 @@ function App() {
   useEffect(() => {
     async function fetchPersons() {
       try {
-        const res = await fetch('http://localhost:3001/api/persons')
+        const res = await fetch('/api/persons')
         const data = await res.json()
         setPersons(data.persons)
         if (data.persons.length > 0) setSelectedPerson(data.persons[0])
@@ -39,7 +39,7 @@ function App() {
     if (!selectedPerson) return
     async function fetchCsvData() {
       try {
-        const res = await fetch(`http://localhost:3001/api/getData?person=${selectedPerson}`)
+        const res = await fetch(`/api/getData?person=${selectedPerson}`)
         const data = await res.json()
         setColumns(data.headers)
         setCsvData(data.rows)
@@ -65,7 +65,6 @@ function App() {
 
   const generatePost = async () => {
     setLoading(true)
-    const apiKey = import.meta.env.VITE_OPENAI_API_KEY
     const oldPostsText = getSelectedColumnText()
     const prompt = `
 Du er en social media-skribent. Brug brugerens tidligere opslag (nedenfor) til at efterligne deres stil.
@@ -77,20 +76,13 @@ ${oldPostsText}
 `
 
     try {
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      const res = await fetch('/api/generatePost', {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o',
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.7,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
       })
       const data = await res.json()
-      setOutput(data.choices?.[0]?.message?.content || 'Ingen svar.')
+      setOutput(data.output || 'Ingen svar.')
     } catch (err) {
       setOutput('Der skete en fejl: ' + err.message)
     }
