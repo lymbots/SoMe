@@ -43,10 +43,11 @@ function App() {
         const data = await res.json()
         setColumns(data.headers)
         setCsvData(data.rows)
+        // Automatisk vælg ad_creative_bodies hvis den findes, ellers vis fejl
         if (data.headers.includes('ad_creative_bodies')) {
           setSelectedColumn('ad_creative_bodies')
         } else {
-          setSelectedColumn(data.headers[0] || '')
+          setSelectedColumn('')
         }
       } catch (error) {
         setCsvData(null)
@@ -190,7 +191,12 @@ ${oldPostsText}
         {csvData && (
           <>
             {/* Kolonnevalg, kun hvis ikke ad_creative_bodies */}
-            {selectedColumn !== 'ad_creative_bodies' && (
+            {selectedColumn === '' && (
+              <p style={{ color: 'red', fontWeight: 600 }}>
+                Mangler kolonnen "ad_creative_bodies" i denne persons data. Kan ikke generere opslag.
+              </p>
+            )}
+            {selectedColumn !== '' && selectedColumn !== 'ad_creative_bodies' && (
               <section>
                 <label
                   htmlFor="columnSelect"
